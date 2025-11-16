@@ -1,0 +1,44 @@
+module.exports = {
+  testRunner: 'jest',
+  runnerConfig: 'e2e/config.json',
+  skipLegacyWorkersInjection: true,
+  apps: {
+    'ios.debug': {
+      type: 'ios.app',
+      binaryPath:
+        'ios/build/Build/Products/Debug-iphonesimulator/ProductVoiceCode.app',
+      build:
+        'xcodebuild -workspace ios/ProductVoiceCode.xcworkspace -scheme ProductVoiceCode -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
+    },
+    'android.debug': {
+      type: 'android.apk',
+      binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
+      build:
+        'cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug && cd ..',
+    },
+  },
+  devices: {
+    simulator: {
+      type: 'ios.simulator',
+      device: {
+        type: 'iPhone 14',
+      },
+    },
+    emulator: {
+      type: 'android.emulator',
+      device: {
+        avdName: 'Pixel_6_API_31',
+      },
+    },
+  },
+  configurations: {
+    'ios.sim.debug': {
+      device: 'simulator',
+      app: 'ios.debug',
+    },
+    'android.emu.debug': {
+      device: 'emulator',
+      app: 'android.debug',
+    },
+  },
+};
