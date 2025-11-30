@@ -10,7 +10,7 @@ import {
   AccessibilityInfo,
   I18nManager,
   Image,
-  LogBox, // <--- Imported LogBox
+  LogBox,
 } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
@@ -21,7 +21,6 @@ import {findProduct} from './src/hooks/useProductMatcher';
 import {Product, VoiceState} from './src/types';
 
 // --- IGNORE WARNINGS ---
-// This hides the harmless warning from react-native-voice
 LogBox.ignoreLogs(['new NativeEventEmitter']);
 // -----------------------
 
@@ -53,7 +52,9 @@ const App = () => {
   };
 
   const onSpeechError = (e: SpeechErrorEvent) => {
-    console.error('onSpeechError:', e);
+    // CHANGED: Use console.log instead of console.error to prevent Red Screen
+    console.log('onSpeechError:', e);
+
     // Translate common error messages to Hebrew
     let errorMessage = 'שגיאה לא ידועה'; // Unknown error
     if (e.error?.message) {
