@@ -41,7 +41,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # React Native 0.72+ works best with Java 17
+          java-version: '17'
 
       - name: Install Dependencies
         run: npm install
@@ -53,14 +53,15 @@ jobs:
         run: |
           echo $ANDROID_KEYSTORE_B64 | base64 -d > android/app/my-upload-key.keystore
 
+      # Build with Secrets passed as Gradle Properties (-P)
       - name: Build Android Release
         run: |
           cd android
-          ./gradlew bundleRelease
-        env:
-          MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_ALIAS: my-key-alias
+          ./gradlew bundleRelease \
+            -PMYAPP_UPLOAD_STORE_FILE=my-upload-key.keystore \
+            -PMYAPP_UPLOAD_KEY_ALIAS=my-key-alias \
+            -PMYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+            -PMYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
