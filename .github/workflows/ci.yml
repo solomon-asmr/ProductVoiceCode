@@ -73,7 +73,8 @@ jobs:
   build-ios:
     name: Build iOS
     needs: test
-    runs-on: macos-latest
+    # CRITICAL FIX: Use macos-13 (Xcode 15) for RN 0.72 compatibility
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -85,12 +86,11 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      # --- NEW FIX STEP START ---
+      # Fix Boost URL (The default one is broken)
       - name: Fix Boost URL
         run: |
-          # The default Jfrog URL is broken. We switch to the reliable archives.boost.io URL.
           sed -i '' 's|https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.bz2|https://archives.boost.io/release/1.76.0/source/boost_1_76_0.tar.bz2|g' node_modules/react-native/third-party-podspecs/boost.podspec
-      # --- NEW FIX STEP END ---
+
       - name: Install Pods
         run: |
           cd ios
@@ -99,4 +99,4 @@ jobs:
       - name: Build iOS (Debug)
         run: |
           cd ios
-          xcodebuild -workspace ProductVoiceCode.xcworkspace -scheme ProductVoiceCode -configuration Debug -sdk iphonesimulator -derivedDataPath build
+          xcodebuild -workspace ProductVoiceCode.xcworkspace -scheme ProductVoiceCode -configuration Debug -sdk iphonesimulator -derivedDataPath build -quiet
