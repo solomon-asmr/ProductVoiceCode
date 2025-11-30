@@ -10,6 +10,7 @@ import {
   AccessibilityInfo,
   I18nManager,
   Image,
+  LogBox, // <--- Imported LogBox
 } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
@@ -18,6 +19,11 @@ import Voice, {
 } from '@react-native-voice/voice';
 import {findProduct} from './src/hooks/useProductMatcher';
 import {Product, VoiceState} from './src/types';
+
+// --- IGNORE WARNINGS ---
+// This hides the harmless warning from react-native-voice
+LogBox.ignoreLogs(['new NativeEventEmitter']);
+// -----------------------
 
 // Force RTL layout for Hebrew support
 I18nManager.forceRTL(true);
@@ -293,7 +299,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    // Removed marginBottom since it's now at the bottom
   },
   micButtonListening: {
     backgroundColor: '#FF3B30', // Red when listening
