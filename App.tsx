@@ -8,6 +8,8 @@ import {
   Platform,
   PermissionsAndroid,
   AccessibilityInfo,
+  I18nManager,
+  Image,
 } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
@@ -16,6 +18,9 @@ import Voice, {
 } from '@react-native-voice/voice';
 import {findProduct} from './src/hooks/useProductMatcher';
 import {Product, VoiceState} from './src/types';
+
+// Force RTL layout for Hebrew support
+I18nManager.forceRTL(true);
 
 // Initial state
 const initialState: VoiceState = {
@@ -43,9 +48,19 @@ const App = () => {
 
   const onSpeechError = (e: SpeechErrorEvent) => {
     console.error('onSpeechError:', e);
-    // iOS frequently throws "Speech recognition unavailable" error if network is bad
-    // or if the mic is used by another app.
-    const errorMessage = e.error?.message || 'Unknown speech error';
+    // Translate common error messages to Hebrew
+    let errorMessage = 'שגיאה לא ידועה'; // Unknown error
+    if (e.error?.message) {
+      if (
+        e.error.message.includes('7') ||
+        e.error.message.includes('No match')
+      ) {
+        errorMessage = 'לא שמעתי, נסה שוב'; // Didn't hear, try again
+      } else {
+        errorMessage = e.error.message;
+      }
+    }
+
     setVoiceState(prev => ({
       ...prev,
       error: errorMessage,
@@ -66,10 +81,10 @@ const App = () => {
       isListening: false,
     }));
 
-    // Announce result for accessibility
+    // Announce result for accessibility (Hebrew)
     const resultText = product
-      ? `Found: ${product.name}, ID: ${product.id}`
-      : 'Product not found';
+      ? `נמצא: ${product.name}, מזהה: ${product.id}`
+      : 'מוצר לא נמצא';
     AccessibilityInfo.announceForAccessibility(resultText);
   };
 
@@ -95,7 +110,7 @@ const App = () => {
     return () => {
       Voice.destroy().then(Voice.removeAllListeners);
     };
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
   // --- Actions ---
 
@@ -105,12 +120,11 @@ const App = () => {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
           {
-            title: 'ProductVoiceCode Microphone Permission',
-            message:
-              'This app needs microphone access to search for products by voice.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
+            title: 'אישור מיקרופון',
+            message: 'האפליקציה צריכה גישה למיקרופון כדי לחפש מוצרים בקול.',
+            buttonNeutral: 'שאל אותי אחר כך',
+            buttonNegative: 'ביטול',
+            buttonPositive: 'אישור',
           },
         );
         return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -137,7 +151,7 @@ const App = () => {
       if (!hasPermission) {
         setVoiceState(prev => ({
           ...prev,
-          error: 'Microphone permission was denied.',
+          error: 'אין הרשאה לשימוש במיקרופון',
         }));
         return;
       }
@@ -145,11 +159,11 @@ const App = () => {
       // Reset state before starting
       setVoiceState({
         ...initialState,
-        isListening: true, // Set listening true immediately
+        isListening: true,
       });
 
       try {
-        // 'en-US' is a common default, adjust as needed
+        // Set locale to Hebrew (Israel)
         await Voice.start('he-IL');
       } catch (e) {
         console.error('Failed to start recording:', e);
@@ -166,9 +180,9 @@ const App = () => {
 
   const getMicButtonLabel = () => {
     if (voiceState.isListening) {
-      return 'Stop recording. Tap to stop.';
+      return 'עצור הקלטה. לחץ לעצירה.';
     }
-    return 'Start recording. Tap to speak product name.';
+    return 'התחל הקלטה. לחץ ואמור שם מוצר.';
   };
 
   const renderProductResult = () => {
@@ -179,9 +193,9 @@ const App = () => {
     if (voiceState.foundProduct === 'not_found') {
       return (
         <View style={styles.resultBox} accessible={true}>
-          <Text style={styles.resultHeader}>Not Found</Text>
+          <Text style={styles.resultHeader}>לא נמצא</Text>
           <Text style={styles.resultText}>
-            Heard: "{voiceState.finalTranscript}"
+            שמעתי: "{voiceState.finalTranscript}"
           </Text>
         </View>
       );
@@ -191,16 +205,29 @@ const App = () => {
     return (
       <View style={styles.resultBox} accessible={true}>
         <Text style={styles.resultHeader}>{product.name}</Text>
-        <Text style={styles.resultId}>ID: {product.id}</Text>
+        <Text style={styles.resultId}>קוד: {product.id}</Text>
       </View>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>ProductVoiceCode</Text>
-
       <View style={styles.micContainer}>
+        {/* 1. LOGO AT TOP */}
+        <Image
+          source={require('./src/assets/logo.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+
+        {/* 2. TEXT IN MIDDLE */}
+        <Text style={styles.transcriptText}>
+          {voiceState.isListening
+            ? voiceState.partialTranscript || 'מקשיב...'
+            : 'לחץ על המיקרופון'}
+        </Text>
+
+        {/* 3. MIC BUTTON AT BOTTOM */}
         <TouchableOpacity
           style={[
             styles.micButton,
@@ -210,21 +237,14 @@ const App = () => {
           accessibilityRole="button"
           accessibilityLabel={getMicButtonLabel()}
           testID="mic-button">
-          {/* Simple text as icon placeholder */}
           <Text style={styles.micIcon}>🎤</Text>
         </TouchableOpacity>
-
-        <Text style={styles.transcriptText}>
-          {voiceState.isListening
-            ? voiceState.partialTranscript || 'Listening...'
-            : 'Tap mic to start'}
-        </Text>
       </View>
 
       {renderProductResult()}
 
       {voiceState.error && (
-        <Text style={styles.errorText}>Error: {voiceState.error}</Text>
+        <Text style={styles.errorText}>{voiceState.error}</Text>
       )}
     </SafeAreaView>
   );
@@ -237,18 +257,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F5FCFF',
     padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    position: 'absolute',
-    top: 60,
+    paddingTop: 50,
   },
   micContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 30,
+    width: '100%',
   },
+  // Logo Styles
+  logoImage: {
+    width: '80%',
+    height: 100,
+    marginBottom: 20, // Push text down
+  },
+  // Text Styles
+  transcriptText: {
+    fontSize: 24,
+    color: '#333',
+    height: 40,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 30, // Push Mic down
+  },
+  // Mic Button Styles
   micButton: {
     width: 120,
     height: 120,
@@ -261,19 +293,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    // Removed marginBottom since it's now at the bottom
   },
   micButtonListening: {
     backgroundColor: '#FF3B30', // Red when listening
   },
   micIcon: {
     fontSize: 60,
-  },
-  transcriptText: {
-    fontSize: 16,
-    color: '#333',
-    marginTop: 20,
-    height: 30, // Reserve space
-    fontStyle: 'italic',
+    color: '#FFFFFF',
   },
   resultBox: {
     width: '90%',
@@ -283,27 +310,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDD',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   resultHeader: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#000',
+    marginBottom: 5,
+    textAlign: 'center',
   },
   resultId: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#007AFF',
     marginTop: 8,
+    fontWeight: '600',
   },
   resultText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#555',
     marginTop: 4,
+    textAlign: 'center',
   },
   errorText: {
-    color: 'red',
+    color: '#D32F2F',
     marginTop: 20,
     textAlign: 'center',
+    fontSize: 16,
     paddingHorizontal: 20,
+    fontWeight: '500',
   },
 });
 
