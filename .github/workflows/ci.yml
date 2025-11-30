@@ -1,0 +1,99 @@
+name: ProductVoiceCode CI
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  # JOB 1: LINT & TEST
+  # Runs on a Linux machine. Checks code quality and runs unit tests.
+  test:
+    name: Lint & Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - name: Install Dependencies
+        run: npm install
+      - name: Run Lint
+        run: npm run lint
+      - name: Run Unit Tests
+        run: npm test
+
+  # JOB 2: BUILD ANDROID
+  # Runs on a Linux machine. Builds the Android Release App (AAB).
+  build-android:
+    name: Build Android
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install Dependencies
+        run: npm install
+
+      # We decode the Keystore from a GitHub Secret (setup instructions below)
+      - name: Decode Keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          echo $ANDROID_KEYSTORE_B64 | base64 -d > android/app/my-upload-key.keystore
+
+      - name: Build Android Release
+        run: |
+          cd android
+          ./gradlew bundleRelease
+        env:
+          MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_ALIAS: my-key-alias
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-release.aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
+  # JOB 3: BUILD iOS
+  # Runs on a virtual Mac. Installs Pods and builds the app to prove it works.
+  build-ios:
+    name: Build iOS
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Pods
+        run: |
+          cd ios
+          pod install
+
+      - name: Build iOS (Debug)
+        # We build Debug for now because Release requires expensive Apple Developer Certificates
+        run: |
+          cd ios
+          xcodebuild -workspace ProductVoiceCode.xcworkspace -scheme ProductVoiceCode -configuration Debug -sdk iphonesimulator -derivedDataPath build

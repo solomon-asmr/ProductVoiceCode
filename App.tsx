@@ -150,7 +150,7 @@ const App = () => {
 
       try {
         // 'en-US' is a common default, adjust as needed
-        await Voice.start('en-US');
+        await Voice.start('he-IL');
       } catch (e) {
         console.error('Failed to start recording:', e);
         setVoiceState(prev => ({

@@ -14,7 +14,7 @@ module.exports = {
       type: 'android.apk',
       binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
       build:
-        'cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug && cd ..',
+        'cd android && gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug && cd ..',
     },
   },
   devices: {
@@ -27,7 +27,7 @@ module.exports = {
     emulator: {
       type: 'android.emulator',
       device: {
-        avdName: 'Pixel_6_API_31',
+        avdName: 'Pixel_6',
       },
     },
   },
