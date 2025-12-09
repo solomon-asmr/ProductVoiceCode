@@ -11,6 +11,7 @@ import {
   I18nManager,
   Image,
   LogBox,
+  ScrollView, // <--- Added ScrollView for lists
 } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
@@ -52,17 +53,15 @@ const App = () => {
   };
 
   const onSpeechError = (e: SpeechErrorEvent) => {
-    // CHANGED: Use console.log instead of console.error to prevent Red Screen
     console.log('onSpeechError:', e);
 
-    // Translate common error messages to Hebrew
-    let errorMessage = 'שגיאה לא ידועה'; // Unknown error
+    let errorMessage = 'שגיאה לא ידועה';
     if (e.error?.message) {
       if (
         e.error.message.includes('7') ||
         e.error.message.includes('No match')
       ) {
-        errorMessage = 'לא שמעתי, נסה שוב'; // Didn't hear, try again
+        errorMessage = 'לא שמעתי, נסה שוב';
       } else {
         errorMessage = e.error.message;
       }
@@ -78,21 +77,30 @@ const App = () => {
   const onSpeechResults = (e: SpeechResultsEvent) => {
     console.log('onSpeechResults:', e);
     const transcript = e.value?.[0] || '';
-    const product = findProduct(transcript);
+
+    // findProduct now returns an Array or null
+    const products = findProduct(transcript);
 
     setVoiceState(prev => ({
       ...prev,
       finalTranscript: transcript,
-      foundProduct: product || 'not_found',
+      foundProduct: products || 'not_found',
       partialTranscript: '',
       isListening: false,
     }));
 
-    // Announce result for accessibility (Hebrew)
-    const resultText = product
-      ? `נמצא: ${product.name}, מזהה: ${product.id}`
-      : 'מוצר לא נמצא';
-    AccessibilityInfo.announceForAccessibility(resultText);
+    // Accessibility Announcement
+    if (products && products.length > 0) {
+      if (products.length === 1) {
+        AccessibilityInfo.announceForAccessibility(`נמצא: ${products[0].name}`);
+      } else {
+        AccessibilityInfo.announceForAccessibility(
+          `נמצאו ${products.length} מוצרים`,
+        );
+      }
+    } else {
+      AccessibilityInfo.announceForAccessibility('מוצר לא נמצא');
+    }
   };
 
   const onSpeechPartialResults = (e: SpeechResultsEvent) => {
@@ -106,14 +114,12 @@ const App = () => {
   // --- useEffect for Setup & Teardown ---
 
   useEffect(() => {
-    // Register all event listeners
     Voice.onSpeechStart = onSpeechStart;
     Voice.onSpeechEnd = onSpeechEnd;
     Voice.onSpeechError = onSpeechError;
     Voice.onSpeechResults = onSpeechResults;
     Voice.onSpeechPartialResults = onSpeechPartialResults;
 
-    // Cleanup: remove all listeners
     return () => {
       Voice.destroy().then(Voice.removeAllListeners);
     };
@@ -140,46 +146,38 @@ const App = () => {
         return false;
       }
     }
-    // iOS permissions are handled by the Info.plist and the library
     return true;
   };
 
   const toggleListening = async () => {
-    if (voiceState.isListening) {
-      try {
+    try {
+      if (voiceState.isListening) {
         await Voice.stop();
         setVoiceState(prev => ({...prev, isListening: false}));
-      } catch (e) {
-        console.error('Failed to stop recording:', e);
-        setVoiceState(prev => ({...prev, error: (e as Error).message}));
-      }
-    } else {
-      const hasPermission = await requestAudioPermission();
-      if (!hasPermission) {
-        setVoiceState(prev => ({
-          ...prev,
-          error: 'אין הרשאה לשימוש במיקרופון',
-        }));
-        return;
-      }
+      } else {
+        const hasPermission = await requestAudioPermission();
+        if (!hasPermission) {
+          setVoiceState(prev => ({
+            ...prev,
+            error: 'אין הרשאה לשימוש במיקרופון',
+          }));
+          return;
+        }
 
-      // Reset state before starting
-      setVoiceState({
-        ...initialState,
-        isListening: true,
-      });
-
-      try {
-        // Set locale to Hebrew (Israel)
+        await Voice.destroy();
+        setVoiceState({
+          ...initialState,
+          isListening: true,
+        });
         await Voice.start('he-IL');
-      } catch (e) {
-        console.error('Failed to start recording:', e);
-        setVoiceState(prev => ({
-          ...prev,
-          error: (e as Error).message,
-          isListening: false,
-        }));
       }
+    } catch (e) {
+      console.log('Toggle Error:', e);
+      setVoiceState(prev => ({
+        ...prev,
+        error: (e as Error).message,
+        isListening: false,
+      }));
     }
   };
 
@@ -208,11 +206,28 @@ const App = () => {
       );
     }
 
-    const product = voiceState.foundProduct as Product;
+    // Handle Array of Products
+    const products = Array.isArray(voiceState.foundProduct)
+      ? voiceState.foundProduct
+      : [voiceState.foundProduct];
+
     return (
-      <View style={styles.resultBox} accessible={true}>
-        <Text style={styles.resultHeader}>{product.name}</Text>
-        <Text style={styles.resultId}>קוד: {product.id}</Text>
+      <View style={styles.resultsContainer}>
+        <Text style={styles.resultCountText}>
+          {products.length > 1
+            ? `נמצאו ${products.length} תוצאות:`
+            : 'נמצא מוצר אחד:'}
+        </Text>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}>
+          {products.map(product => (
+            <View key={product.id} style={styles.resultItem}>
+              <Text style={styles.resultHeader}>{product.name}</Text>
+              <Text style={styles.resultId}>קוד: {product.id}</Text>
+            </View>
+          ))}
+        </ScrollView>
       </View>
     );
   };
@@ -220,21 +235,21 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.micContainer}>
-        {/* 1. LOGO AT TOP */}
+        {/* LOGO */}
         <Image
           source={require('./src/assets/logo.png')}
           style={styles.logoImage}
           resizeMode="contain"
         />
 
-        {/* 2. TEXT IN MIDDLE */}
+        {/* TEXT */}
         <Text style={styles.transcriptText}>
           {voiceState.isListening
             ? voiceState.partialTranscript || 'מקשיב...'
             : 'לחץ על המיקרופון'}
         </Text>
 
-        {/* 3. MIC BUTTON AT BOTTOM */}
+        {/* MIC BUTTON */}
         <TouchableOpacity
           style={[
             styles.micButton,
@@ -260,7 +275,7 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'center', // Centers vertical content
     alignItems: 'center',
     backgroundColor: '#F5FCFF',
     padding: 20,
@@ -269,25 +284,23 @@ const styles = StyleSheet.create({
   micContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
     width: '100%',
+    flexGrow: 0, // Prevent mic from taking up all space
   },
-  // Logo Styles
   logoImage: {
     width: '80%',
     height: 100,
-    marginBottom: 20, // Push text down
+    marginBottom: 20,
   },
-  // Text Styles
   transcriptText: {
     fontSize: 24,
     color: '#333',
     height: 40,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 30, // Push Mic down
+    marginBottom: 30,
   },
-  // Mic Button Styles
   micButton: {
     width: 120,
     height: 120,
@@ -302,13 +315,33 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   micButtonListening: {
-    backgroundColor: '#FF3B30', // Red when listening
+    backgroundColor: '#FF3B30',
   },
   micIcon: {
     fontSize: 60,
     color: '#FFFFFF',
   },
+  // --- UPDATED RESULT STYLES ---
+  resultsContainer: {
+    width: '100%',
+    flex: 1, // Take remaining space
+    alignItems: 'center',
+  },
+  resultCountText: {
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#555',
+    fontWeight: 'bold',
+  },
+  scrollView: {
+    width: '100%',
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
   resultBox: {
+    // Legacy style for "Not Found"
     width: '90%',
     backgroundColor: '#FFFFFF',
     padding: 20,
@@ -322,17 +355,33 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  resultItem: {
+    // New style for list items
+    width: '90%',
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    alignItems: 'center',
+    marginBottom: 10, // Space between items
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   resultHeader: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#000',
     marginBottom: 5,
     textAlign: 'center',
   },
   resultId: {
-    fontSize: 22,
+    fontSize: 20,
     color: '#007AFF',
-    marginTop: 8,
+    marginTop: 4,
     fontWeight: '600',
   },
   resultText: {
@@ -343,7 +392,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#D32F2F',
-    marginTop: 20,
+    marginTop: 10,
     textAlign: 'center',
     fontSize: 16,
     paddingHorizontal: 20,

@@ -2,9 +2,6 @@ import {Product} from '../types';
 import productData from '../data/products.json';
 
 // Helper function to clean Hebrew text
-// 1. Trims whitespace
-// 2. Replaces "Start" notation
-// 3. Converts double Yud (יי) to single Yud (י) to fix spelling mismatches
 const normalizeHebrew = (text: string): string => {
   return text
     .trim()
@@ -13,46 +10,93 @@ const normalizeHebrew = (text: string): string => {
     .toLowerCase();
 };
 
-// Sort products by length (Longest first) for the partial match phase
+// Helper to generate singular/plural variations
+// Example: "עגבניות" -> returns ["עגבניות", "עגבניה"]
+// Example: "בננה" -> returns ["בננה", "בננות"]
+const getHebrewVariations = (text: string): string[] => {
+  const variations = new Set<string>([text]);
+
+  // Handle 'ot' (ות) <-> 'ah' (ה) suffix (Common Feminine Plural/Singular)
+  if (text.endsWith('ות')) {
+    // Plural to Singular: עגבניות -> עגבניה
+    variations.add(text.slice(0, -2) + 'ה');
+    variations.add(text.slice(0, -2)); // Sometimes singular has no suffix
+  } else if (text.endsWith('ה')) {
+    // Singular to Plural: בננה -> בננות
+    variations.add(text.slice(0, -1) + 'ות');
+  }
+
+  // Handle 'im' (ים) suffix (Common Masculine Plural)
+  if (text.endsWith('ים')) {
+    // Plural to Singular: תפוחים -> תפוח
+    variations.add(text.slice(0, -2));
+  } else {
+    // Singular to Plural: תפוח -> תפוחים
+    variations.add(text + 'ים');
+  }
+
+  return Array.from(variations);
+};
+
+// Sort products by length (Longest first)
 const sortedProducts = [...productData].sort(
   (a, b) => b.name.length - a.name.length,
 );
 
-/**
- * Finds a product from the static list based on a spoken transcript.
- * @param transcript The speech-to-text transcript.
- * @returns A matching Product, or null if no match.
- */
-export const findProduct = (transcript: string): Product | null => {
+export const findProduct = (transcript: string): Product[] | null => {
   if (!transcript) return null;
 
   const cleanTranscript = normalizeHebrew(transcript);
 
-  // --- PHASE 1: EXACT MATCH (High Priority) ---
-  // If the user said EXACTLY "בצל", we must return "בצל",
-  // even if "בצל אדום" exists and is longer.
-  const exactMatch = productData.find(
-    p => normalizeHebrew(p.name) === cleanTranscript,
-  );
+  // Generate all possible versions of what the user said
+  // e.g. user said "עגבניות", we also look for "עגבניה"
+  const transcriptVariations = getHebrewVariations(cleanTranscript);
 
-  if (exactMatch) {
-    return exactMatch;
+  // --- PHASE 1: EXACT MATCH & GRAMMAR MATCH (Highest Priority) ---
+  // Check if ANY of our variations matches a product name exactly.
+  for (const variation of transcriptVariations) {
+    const exactMatch = productData.find(
+      p => normalizeHebrew(p.name) === variation,
+    );
+    if (exactMatch) {
+      return [exactMatch];
+    }
   }
 
-  // --- PHASE 2: PARTIAL MATCH (Smart Search) ---
-  // If we didn't find an exact match, look for phrases inside the text.
-  // We use the sorted list (Longest First) here.
-  // Example: "אני רוצה בצל אדום" -> matches "בצל אדום" before "בצל".
+  // --- PHASE 2: SPECIFIC INTENT (Medium Priority) ---
+  // Check if the product name is contained inside any of our variations
+  // or vice versa.
   for (const product of sortedProducts) {
     const cleanProductName = normalizeHebrew(product.name);
 
-    // Check if the transcript INCLUDES the product name
-    if (cleanTranscript.includes(cleanProductName)) {
-      return product;
+    // Check against all variations (Singular/Plural)
+    for (const variation of transcriptVariations) {
+      if (variation.includes(cleanProductName)) {
+        return [product];
+      }
     }
+  }
 
-    // Note: I removed the reverse check (product includes transcript)
-    // because that caused "בצל" to match "בצל אדום".
+  // --- PHASE 3: CATEGORY SEARCH (Broad Priority) ---
+  // Find EVERYTHING that contains the word (or its variations).
+  // Example: User says "עגבניות" -> Variation is "עגבניה" -> Matches "עגבניות שרי"
+  let categoryMatches: Product[] = [];
+
+  for (const variation of transcriptVariations) {
+    const matches = productData.filter(product => {
+      const cleanProductName = normalizeHebrew(product.name);
+      return cleanProductName.includes(variation);
+    });
+    categoryMatches = [...categoryMatches, ...matches];
+  }
+
+  // Remove duplicates (in case "עגבניה" and "עגבניות" matched the same item)
+  const uniqueMatches = Array.from(new Set(categoryMatches.map(p => p.id))).map(
+    id => categoryMatches.find(p => p.id === id)!,
+  );
+
+  if (uniqueMatches.length > 0) {
+    return uniqueMatches;
   }
 
   return null;

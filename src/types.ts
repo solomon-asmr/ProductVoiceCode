@@ -8,5 +8,6 @@ export interface VoiceState {
   partialTranscript: string;
   finalTranscript: string;
   error: string;
-  foundProduct: Product | null | 'not_found';
+  // CHANGED: Now supports a single Product, an Array of Products, or null
+  foundProduct: Product | Product[] | null | 'not_found';
 }
