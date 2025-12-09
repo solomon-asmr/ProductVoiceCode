@@ -11,7 +11,7 @@ import {
   I18nManager,
   Image,
   LogBox,
-  ScrollView, // <--- Added ScrollView for lists
+  ScrollView,
 } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
@@ -19,7 +19,7 @@ import Voice, {
   SpeechStartEvent,
 } from '@react-native-voice/voice';
 import {findProduct} from './src/hooks/useProductMatcher';
-import {Product, VoiceState} from './src/types';
+import {VoiceState} from './src/types'; // <--- Fixed: Removed unused 'Product'
 
 // --- IGNORE WARNINGS ---
 LogBox.ignoreLogs(['new NativeEventEmitter']);
@@ -259,7 +259,7 @@ const App = () => {
           accessibilityRole="button"
           accessibilityLabel={getMicButtonLabel()}
           testID="mic-button">
-          <Text style={styles.micIcon}>🎤</Text>
+          <Text style={styles.micIcon}>🎙️</Text>
         </TouchableOpacity>
       </View>
 
