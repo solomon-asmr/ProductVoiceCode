@@ -74,7 +74,7 @@ jobs:
     name: Build iOS
     needs: test
     # CRITICAL FIX: Use macos-13 (Xcode 15) for RN 0.72 compatibility
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
