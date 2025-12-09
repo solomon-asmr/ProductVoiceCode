@@ -12,19 +12,22 @@ describe('useProductMatcher', () => {
   it('should find a product with exact match', () => {
     const transcript = 'Mega Gadget';
     const product = findProduct(transcript);
-    expect(product).toEqual({name: 'Mega Gadget', id: 'G-1024'});
+    // UPDATE: Expect an array containing the object
+    expect(product).toEqual([{name: 'Mega Gadget', id: 'G-1024'}]);
   });
 
   it('should find a product with case-insensitivity', () => {
     const transcript = 'classic widget';
     const product = findProduct(transcript);
-    expect(product).toEqual({name: 'Classic Widget', id: 'W-001'});
+    // UPDATE: Expect an array containing the object
+    expect(product).toEqual([{name: 'Classic Widget', id: 'W-001'}]);
   });
 
   it('should find a product with extra whitespace', () => {
     const transcript = '  Super Spanner  ';
     const product = findProduct(transcript);
-    expect(product).toEqual({name: 'Super Spanner', id: 'S-SPAN-01'});
+    // UPDATE: Expect an array containing the object
+    expect(product).toEqual([{name: 'Super Spanner', id: 'S-SPAN-01'}]);
   });
 
   it('should return null for no match', () => {
